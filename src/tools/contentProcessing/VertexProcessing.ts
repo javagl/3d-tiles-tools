@@ -22,6 +22,11 @@ import { BoundingVolumes } from "../tilesetProcessing/BoundingVolumes";
 
 import { GltfUpgrade } from "../migration/GltfUpgrade";
 
+import { GltfUtilities } from "./GltfUtilities";
+
+import { Loggers } from "../../base";
+const logger = Loggers.get("contentProcessing");
+
 /**
  * Methods to process the vertices that are contained in tile content.
  *
@@ -78,6 +83,8 @@ export class VertexProcessing {
     );
     if (contentDataType === ContentDataTypes.CONTENT_TYPE_GLB) {
       await VertexProcessing.fromGlb(data, consumer);
+    } else if (contentDataType === ContentDataTypes.CONTENT_TYPE_GLTF) {
+      await VertexProcessing.fromGltf(data, consumer);
     } else if (contentDataType === ContentDataTypes.CONTENT_TYPE_PNTS) {
       await VertexProcessing.fromPnts(data, consumer);
     } else if (contentDataType === ContentDataTypes.CONTENT_TYPE_B3DM) {
@@ -153,7 +160,7 @@ export class VertexProcessing {
     const positionForTileset = Array<number>(3);
 
     // If the feature table defines an `RTC_CENTER`, then
-    // translate the bounding volume box by this amount
+    // translate the vertex positions by this amount
     const featureTable = tileData.featureTable.json as B3dmFeatureTable;
     if (featureTable.RTC_CENTER) {
       const featureTableBinary = tileData.featureTable.binary;
@@ -356,9 +363,6 @@ export class VertexProcessing {
     glbBuffer: Buffer,
     consumer: (p: number[]) => void
   ): Promise<void> {
-    //const io = await GltfTransform.getIO();
-    //const document = await io.readBinary(glbBuffer);
-    // TODO Obtaining document, INCLUDING possible upgrades - OK?
     const document = await GltfUpgrade.obtainDocument(glbBuffer, "Y");
     const root = document.getRoot();
     let scene = root.getDefaultScene();
@@ -370,6 +374,35 @@ export class VertexProcessing {
     }
     if (scene) {
       VertexProcessing.fromGltfNode(scene, consumer);
+    }
+  }
+
+  /**
+   * Implementation of `fromContent` for glTF (see `fromContent`)
+   *
+   * This will pass the vertices of all meshes that are contained in
+   * the default scene (or the first scene, if there is no default)
+   * to the given consumer.
+   *
+   * @param glbBuffer - The buffer containing GLB data
+   * @param consumer - The consumer that will receive the vertices
+   */
+  private static async fromGltf(
+    gltfBuffer: Buffer,
+    consumer: (p: number[]) => void
+  ): Promise<void> {
+    logger.warn(
+      "Creating GLB buffer from glTF for use in glTF-Transform. " +
+        "External references may not be resolved."
+    );
+    try {
+      const glbBuffer = GltfUtilities.createGlb2FromData(
+        gltfBuffer,
+        Buffer.alloc(0)
+      );
+      return await VertexProcessing.fromGlb(glbBuffer, consumer);
+    } catch (error) {
+      logger.fatal(error);
     }
   }
 
