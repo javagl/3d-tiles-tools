@@ -117,21 +117,28 @@ export class ImplicitTraversedTile implements TraversedTile {
 
   /** {@inheritDoc TraversedTile.asRawTile} */
   asRawTile(): Tile {
-    const rootTile = this._root.asFinalTile();
+    // Obtaining the RAW root tile here, which does NOT include
+    // the properties that may be overridden by metadata with
+    // semantics.
+    // The implicit child tile properties (mainly, the bounding
+    // volume and the geometric error) should be derived based
+    // on the non-overridden values.
+    // See https://github.com/CesiumGS/cesium/issues/13195
+    const rawRootTile = this._root.asRawTile();
+    const level = this._globalCoordinate.level;
+    const geometricError = rawRootTile.geometricError / Math.pow(2, level);
 
     const boundingVolume = BoundingVolumeDerivation.deriveBoundingVolume(
-      rootTile.boundingVolume,
+      rawRootTile.boundingVolume,
       this._globalCoordinate.toArray()
     );
     if (!boundingVolume) {
       // The bounding volume was not a region, box, or S2 Cell.
       throw new ImplicitTilingError("Could not subdivide bounding volume");
     }
-    const level = this._globalCoordinate.level;
-    const geometricError = rootTile.geometricError / Math.pow(2, level);
 
-    const viewerRequestVolume = rootTile.viewerRequestVolume;
-    const refine = rootTile.refine;
+    const viewerRequestVolume = rawRootTile.viewerRequestVolume;
+    const refine = rawRootTile.refine;
     const transform = undefined;
     const metadata = undefined;
     const implicitTiling = undefined;
